@@ -1,0 +1,18 @@
+package ui
+
+import (
+	"github.com/jdelnano/spotify-tui/spotify"
+	spotifyPkg "github.com/zmb3/spotify/v2"
+)
+
+func NewModel(spotifyClient *spotify.Client) Model {
+	return Model{
+		spotifyClient:  spotifyClient,
+		viewMode:       PlaylistView,
+		playlists:      []spotifyPkg.SimplePlaylist{},
+		searchResults:  []spotifyPkg.FullTrack{},
+		playlistTracks: []spotifyPkg.PlaylistTrack{},
+		width:          80,
+		height:         24,
+	}
+}

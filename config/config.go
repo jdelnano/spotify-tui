@@ -1,0 +1,81 @@
+package config
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
+	"golang.org/x/oauth2"
+)
+
+type Config struct {
+	ClientID     string        `json:"client_id"`
+	ClientSecret string        `json:"client_secret"`
+	Token        *oauth2.Token `json:"token,omitempty"`
+}
+
+func GetConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	configDir := filepath.Join(home, ".spotify-tui")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "config.json"), nil
+}
+
+func LoadConfig() (*Config, error) {
+	path, err := GetConfigPath()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &Config{}, nil
+		}
+		return nil, err
+	}
+
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+func (c *Config) Save() error {
+	path, err := GetConfigPath()
+	if err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(path, data, 0600)
+}
+
+func (c *Config) IsConfigured() bool {
+	return c.ClientID != "" && c.ClientSecret != ""
+}
+
+func (c *Config) PromptForCredentials() error {
+	if c.ClientID == "" {
+		fmt.Print("Enter Spotify Client ID: ")
+		fmt.Scanln(&c.ClientID)
+	}
+	if c.ClientSecret == "" {
+		fmt.Print("Enter Spotify Client Secret: ")
+		fmt.Scanln(&c.ClientSecret)
+	}
+	return c.Save()
+}
