@@ -281,6 +281,7 @@ func (m Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
 		}
 		// Change the model state to reflect we started a song
 		m.currentlyPlaying.Playing = true
+		m.currentlyPlaying.Item.Name = track.Track.Name
 
 		return statusMsg{fmt.Sprintf("Playing: %s", track.Track.Name)}
 	}
@@ -313,6 +314,9 @@ func (m Model) playSearchResult(track spotifyPkg.FullTrack) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+		// Change the model state to reflect we started a song
+		m.currentlyPlaying.Playing = true
+		m.currentlyPlaying.Item.Name = track.Name
 
 		return statusMsg{fmt.Sprintf("Playing: %s", track.Name)}
 	}

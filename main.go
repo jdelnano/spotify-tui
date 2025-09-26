@@ -38,22 +38,40 @@ func main() {
 
 	// Check if we have a saved token
 	var spotifyClient *spotify.Client
+	tokenUpdated := false
+
 	if cfg.Token != nil {
-		// Try to use the saved token
-		client, err := spotifyAuth.RefreshToken(cfg.Token)
+		// Try to use the saved token (will automatically refresh if expired)
+		client, newToken, err := spotifyAuth.ClientFromToken(cfg.Token)
 		if err == nil {
 			spotifyClient = spotify.NewClient(client)
+			// Update the token in config if it was refreshed
+			if newToken.AccessToken != cfg.Token.AccessToken {
+				cfg.Token = newToken
+				tokenUpdated = true
+			}
+		} else {
+			fmt.Printf("Cached token invalid or expired: %v\n", err)
 		}
 	}
 
-	// If we don't have a client yet, authenticate
+	// If we don't have a client yet, authenticate from scratch
 	if spotifyClient == nil {
 		fmt.Println("\nAuthenticating with Spotify...")
-		client, err := spotifyAuth.Authenticate()
+		client, token, err := spotifyAuth.Authenticate()
 		if err != nil {
 			log.Fatal("Failed to authenticate:", err)
 		}
 		spotifyClient = spotify.NewClient(client)
+		cfg.Token = token
+		tokenUpdated = true
+	}
+
+	// Save the updated token to config if it changed
+	if tokenUpdated {
+		if err := cfg.Save(); err != nil {
+			log.Printf("Warning: Failed to save token to config: %v", err)
+		}
 	}
 
 	// Create the TUI model
