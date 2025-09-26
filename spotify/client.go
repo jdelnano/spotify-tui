@@ -27,6 +27,36 @@ func (c *Client) GetPlaylists() ([]spotify.SimplePlaylist, error) {
 	return playlists.Playlists, nil
 }
 
+func (c *Client) GetPlaylistByName(name string) (*spotify.SimplePlaylist, error) {
+	// Search through user's playlists for the specified name
+	playlists, err := c.client.CurrentUsersPlaylists(c.ctx, spotify.Limit(50))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, playlist := range playlists.Playlists {
+		if playlist.Name == name {
+			return &playlist, nil
+		}
+	}
+
+	// If not found in first 50, continue searching
+	for playlists.Next != "" {
+		err = c.client.NextPage(c.ctx, playlists)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, playlist := range playlists.Playlists {
+			if playlist.Name == name {
+				return &playlist, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
 func (c *Client) GetPlaylistTracks(playlistID spotify.ID) ([]spotify.PlaylistTrack, error) {
 	tracks, err := c.client.GetPlaylistTracks(c.ctx, playlistID, spotify.Limit(50))
 	if err != nil {
@@ -103,6 +133,66 @@ func (c *Client) GetDevices() ([]spotify.PlayerDevice, error) {
 
 func (c *Client) SetVolume(percent int) error {
 	return c.client.Volume(c.ctx, percent)
+}
+
+func (c *Client) GetSavedTracks() ([]spotify.SavedTrack, error) {
+	tracks, err := c.client.CurrentUsersTracks(c.ctx, spotify.Limit(50))
+	if err != nil {
+		return nil, err
+	}
+
+	var allTracks []spotify.SavedTrack
+	for page := 1; ; page++ {
+		allTracks = append(allTracks, tracks.Tracks...)
+		err = c.client.NextPage(c.ctx, tracks)
+		if err == spotify.ErrNoMorePages {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return allTracks, nil
+}
+
+func (c *Client) GetSavedAlbums() ([]spotify.SavedAlbum, error) {
+	albums, err := c.client.CurrentUsersAlbums(c.ctx, spotify.Limit(50))
+	if err != nil {
+		return nil, err
+	}
+
+	var allAlbums []spotify.SavedAlbum
+	for page := 1; ; page++ {
+		allAlbums = append(allAlbums, albums.Albums...)
+		err = c.client.NextPage(c.ctx, albums)
+		if err == spotify.ErrNoMorePages {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return allAlbums, nil
+}
+
+func (c *Client) GetFollowedArtists() ([]spotify.FullArtist, error) {
+	artists, err := c.client.CurrentUsersFollowedArtists(c.ctx, spotify.Limit(50))
+	if err != nil {
+		return nil, err
+	}
+	return artists.Artists, nil
+}
+
+func (c *Client) GetRecentlyPlayed() ([]spotify.RecentlyPlayedItem, error) {
+	recent, err := c.client.PlayerRecentlyPlayedOpt(c.ctx, &spotify.RecentlyPlayedOptions{
+		Limit: 50,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return recent, nil
 }
 
 func (c *Client) FormatTrackInfo(track *spotify.FullTrack) string {

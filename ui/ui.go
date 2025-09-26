@@ -12,6 +12,10 @@ func NewModel(spotifyClient *spotify.Client) Model {
 		playlists:      []spotifyPkg.SimplePlaylist{},
 		searchResults:  []spotifyPkg.FullTrack{},
 		playlistTracks: []spotifyPkg.PlaylistTrack{},
+		playlistCursor: 0,
+		libraryCursor:  -1,
+		trackCursor:    0,
+		searchCursor:   0,
 		width:          80,
 		height:         24,
 	}

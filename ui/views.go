@@ -38,6 +38,11 @@ var (
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("62")).
 			Padding(0, 1)
+
+	libraryPanelStyle = lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("62")).
+				Padding(0, 1)
 )
 
 func (m Model) View() string {
@@ -56,16 +61,31 @@ func (m Model) View() string {
 }
 
 func (m Model) mainView() string {
+	libraryPanel := m.renderLibraryPanel()
 	playlistPanel := m.renderPlaylistPanel()
 	trackPanel := m.renderTrackPanel()
 
-	playlistWidth := m.width / 3
-	trackWidth := m.width - playlistWidth - 4
+	leftColumnWidth := m.width / 3
+	trackWidth := m.width - leftColumnWidth - 4
+
+	libraryHeight := 10
+	playlistHeight := m.height - libraryHeight - 4
+
+	libraryPanel = lipgloss.NewStyle().
+		Width(leftColumnWidth).
+		Height(libraryHeight).
+		Render(libraryPanel)
 
 	playlistPanel = lipgloss.NewStyle().
-		Width(playlistWidth).
-		Height(m.height - 3).
+		Width(leftColumnWidth).
+		Height(playlistHeight).
 		Render(playlistPanel)
+
+	leftColumn := lipgloss.JoinVertical(
+		lipgloss.Left,
+		libraryPanel,
+		playlistPanel,
+	)
 
 	trackPanel = lipgloss.NewStyle().
 		Width(trackWidth).
@@ -74,7 +94,7 @@ func (m Model) mainView() string {
 
 	main := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		playlistPanel,
+		leftColumn,
 		trackPanel,
 	)
 
@@ -91,7 +111,7 @@ func (m Model) renderPlaylistPanel() string {
 	} else {
 		visibleStart := 0
 		visibleEnd := len(m.playlists)
-		maxVisible := m.height - 8
+		maxVisible := m.height - 18
 
 		if len(m.playlists) > maxVisible {
 			if m.playlistCursor >= maxVisible {
@@ -111,7 +131,7 @@ func (m Model) renderPlaylistPanel() string {
 			}
 
 			line := fmt.Sprintf(" %s", name)
-			if i == m.playlistCursor {
+			if i == m.playlistCursor && m.selectedPlaylist == nil && m.libraryCursor == -1 {
 				line = selectedStyle.Render("▶" + line)
 			} else {
 				line = normalStyle.Render(" " + line)
@@ -126,7 +146,95 @@ func (m Model) renderPlaylistPanel() string {
 func (m Model) renderTrackPanel() string {
 	var content strings.Builder
 
-	if m.selectedPlaylist != nil {
+	if m.selectedLibraryItem != nil {
+		content.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", m.selectedLibraryItem.Icon, m.selectedLibraryItem.Name)) + "\n\n")
+
+		if m.selectedLibraryItem.Type == "saved_tracks" {
+			if len(m.savedTracks) == 0 {
+				content.WriteString(statusStyle.Render("No tracks found"))
+			} else {
+				visibleStart := 0
+				visibleEnd := len(m.savedTracks)
+				maxVisible := m.height - 8
+
+				if len(m.savedTracks) > maxVisible {
+					if m.trackCursor >= maxVisible {
+						visibleStart = m.trackCursor - maxVisible + 1
+					}
+					visibleEnd = visibleStart + maxVisible
+					if visibleEnd > len(m.savedTracks) {
+						visibleEnd = len(m.savedTracks)
+					}
+				}
+
+				for i := visibleStart; i < visibleEnd; i++ {
+					track := m.savedTracks[i]
+
+					artists := ""
+					for j, artist := range track.Artists {
+						if j > 0 {
+							artists += ", "
+						}
+						artists += artist.Name
+					}
+
+					line := fmt.Sprintf(" %s - %s", track.Name, artists)
+					if len(line) > 60 {
+						line = line[:57] + "..."
+					}
+
+					if i == m.trackCursor && m.viewMode == PlaylistView {
+						line = selectedStyle.Render("▶" + line)
+					} else {
+						line = normalStyle.Render(" " + line)
+					}
+					content.WriteString(line + "\n")
+				}
+			}
+		} else if m.selectedLibraryItem.Type == "playlist" {
+			if len(m.playlistTracks) == 0 {
+				content.WriteString(statusStyle.Render("No tracks found"))
+			} else {
+				visibleStart := 0
+				visibleEnd := len(m.playlistTracks)
+				maxVisible := m.height - 8
+
+				if len(m.playlistTracks) > maxVisible {
+					if m.trackCursor >= maxVisible {
+						visibleStart = m.trackCursor - maxVisible + 1
+					}
+					visibleEnd = visibleStart + maxVisible
+					if visibleEnd > len(m.playlistTracks) {
+						visibleEnd = len(m.playlistTracks)
+					}
+				}
+
+				for i := visibleStart; i < visibleEnd; i++ {
+					track := m.playlistTracks[i].Track
+
+					artists := ""
+					for j, artist := range track.Artists {
+						if j > 0 {
+							artists += ", "
+						}
+						artists += artist.Name
+					}
+
+					line := fmt.Sprintf(" %s - %s", track.Name, artists)
+					if len(line) > 60 {
+						line = line[:57] + "..."
+					}
+
+					if i == m.trackCursor && m.viewMode == PlaylistView {
+						line = selectedStyle.Render("▶" + line)
+					} else {
+						line = normalStyle.Render(" " + line)
+					}
+					content.WriteString(line + "\n")
+				}
+			}
+		}
+	} else if m.selectedPlaylist != nil {
 		content.WriteString(headerStyle.Render(fmt.Sprintf("🎵 %s", m.selectedPlaylist.Name)) + "\n\n")
 
 		if len(m.playlistTracks) == 0 {
@@ -172,7 +280,7 @@ func (m Model) renderTrackPanel() string {
 		}
 	} else {
 		content.WriteString(headerStyle.Render("🎵 Tracks") + "\n\n")
-		content.WriteString(statusStyle.Render("Select a playlist to view tracks"))
+		content.WriteString(statusStyle.Render("Select a library item or playlist to view tracks"))
 	}
 
 	return trackPanelStyle.Render(content.String())
@@ -285,11 +393,35 @@ func (m Model) renderProgressBar(current, total, width int) string {
 	return bar
 }
 
+func (m Model) renderLibraryPanel() string {
+	var content strings.Builder
+	content.WriteString(headerStyle.Render("📚 Library") + "\n\n")
+
+	if len(m.libraryCategories) == 0 {
+		content.WriteString(statusStyle.Render("Loading library..."))
+	} else {
+		for i, category := range m.libraryCategories {
+			line := fmt.Sprintf("%s %s", category.Icon, category.Name)
+			if category.ItemCount > 0 {
+				line += fmt.Sprintf(" (%d)", category.ItemCount)
+			}
+
+			if i == m.libraryCursor && m.selectedPlaylist == nil {
+				line = selectedStyle.Render("▶ " + line)
+			} else {
+				line = normalStyle.Render("  " + line)
+			}
+			content.WriteString(line + "\n")
+		}
+	}
+
+	return libraryPanelStyle.Render(content.String())
+}
+
 func (m Model) renderStatusBar() string {
-	help := "↑↓: Navigate | Enter: Select | /: Search | n: Now Playing | p: Playlists | Space: Play/Pause | q: Quit"
+	help := "↑↓: Navigate | Tab: Switch Section | Enter: Select | /: Search | n: Now Playing | Space: Play/Pause | q: Quit"
 	if m.statusMessage != "" {
 		help = m.statusMessage
 	}
 	return statusStyle.Render(help)
 }
-
