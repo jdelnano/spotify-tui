@@ -40,7 +40,7 @@ type savedTracksLoadedMsg struct {
 	tracks []spotifyPkg.SavedTrack
 }
 
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadPlaylists(),
 		m.loadLibrary(),
@@ -51,7 +51,7 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.isSearching {
@@ -114,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
@@ -285,7 +285,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		m.isSearching = false
@@ -318,7 +318,7 @@ func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) loadPlaylists() tea.Cmd {
+func (m *Model) loadPlaylists() tea.Cmd {
 	return func() tea.Msg {
 		playlists, err := m.spotifyClient.GetPlaylists()
 		if err != nil {
@@ -328,7 +328,7 @@ func (m Model) loadPlaylists() tea.Cmd {
 	}
 }
 
-func (m Model) loadPlaylistTracks(playlistID spotifyPkg.ID) tea.Cmd {
+func (m *Model) loadPlaylistTracks(playlistID spotifyPkg.ID) tea.Cmd {
 	return func() tea.Msg {
 		tracks, err := m.spotifyClient.GetPlaylistTracks(playlistID)
 		if err != nil {
@@ -338,7 +338,7 @@ func (m Model) loadPlaylistTracks(playlistID spotifyPkg.ID) tea.Cmd {
 	}
 }
 
-func (m Model) searchTracks() tea.Cmd {
+func (m *Model) searchTracks() tea.Cmd {
 	return func() tea.Msg {
 		results, err := m.spotifyClient.SearchTracks(m.searchQuery)
 		if err != nil {
@@ -348,7 +348,7 @@ func (m Model) searchTracks() tea.Cmd {
 	}
 }
 
-func (m Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
+func (m *Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
 	return func() tea.Msg {
 		activeDevice, err := m.spotifyClient.GetActiveDevice()
 		if err != nil {
@@ -368,7 +368,7 @@ func (m Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
 	}
 }
 
-func (m Model) playSearchResult(track spotifyPkg.FullTrack) tea.Cmd {
+func (m *Model) playSearchResult(track spotifyPkg.FullTrack) tea.Cmd {
 	return func() tea.Msg {
 		activeDevice, err := m.spotifyClient.GetActiveDevice()
 		if err != nil {
@@ -387,7 +387,7 @@ func (m Model) playSearchResult(track spotifyPkg.FullTrack) tea.Cmd {
 	}
 }
 
-func (m Model) togglePlayback() tea.Cmd {
+func (m *Model) togglePlayback() tea.Cmd {
 	return func() tea.Msg {
 		// First check if we have any active devices
 		devices, err := m.spotifyClient.GetDevices()
@@ -441,7 +441,7 @@ func (m Model) togglePlayback() tea.Cmd {
 	}
 }
 
-func (m Model) nextTrack() tea.Cmd {
+func (m *Model) nextTrack() tea.Cmd {
 	return func() tea.Msg {
 		err := m.spotifyClient.Next()
 		if err != nil {
@@ -451,7 +451,7 @@ func (m Model) nextTrack() tea.Cmd {
 	}
 }
 
-func (m Model) previousTrack(track *spotifyPkg.RecentlyPlayedItem) tea.Cmd {
+func (m *Model) previousTrack(track *spotifyPkg.RecentlyPlayedItem) tea.Cmd {
 	return func() tea.Msg {
 		if len(m.recentlyPlayed) == 0 {
 			return statusMsg{"The previous track queue is empty"}
@@ -470,7 +470,7 @@ func (m Model) previousTrack(track *spotifyPkg.RecentlyPlayedItem) tea.Cmd {
 	}
 }
 
-func (m Model) fetchCurrentlyPlaying() tea.Cmd {
+func (m *Model) fetchCurrentlyPlaying() tea.Cmd {
 	return func() tea.Msg {
 		playing, err := m.spotifyClient.GetCurrentlyPlaying()
 		if err != nil {
@@ -480,7 +480,7 @@ func (m Model) fetchCurrentlyPlaying() tea.Cmd {
 	}
 }
 
-func (m Model) loadLibrary() tea.Cmd {
+func (m *Model) loadLibrary() tea.Cmd {
 	return func() tea.Msg {
 		var categories []LibraryCategory
 
@@ -515,7 +515,7 @@ func (m Model) loadLibrary() tea.Cmd {
 	}
 }
 
-func (m Model) loadLibraryItems(category LibraryCategory) tea.Cmd {
+func (m *Model) loadLibraryItems(category LibraryCategory) tea.Cmd {
 	return func() tea.Msg {
 		switch category.Type {
 		case "saved_tracks":
@@ -536,7 +536,7 @@ func (m Model) loadLibraryItems(category LibraryCategory) tea.Cmd {
 	}
 }
 
-func (m Model) playSavedTrack(track spotifyPkg.SavedTrack) tea.Cmd {
+func (m *Model) playSavedTrack(track spotifyPkg.SavedTrack) tea.Cmd {
 	return func() tea.Msg {
 		activeDevice, err := m.spotifyClient.GetActiveDevice()
 		if err != nil {

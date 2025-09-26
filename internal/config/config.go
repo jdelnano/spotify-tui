@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -34,7 +33,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &Config{}, nil
@@ -61,7 +60,7 @@ func (c *Config) Save() error {
 		return err
 	}
 
-	return ioutil.WriteFile(path, data, 0600)
+	return os.WriteFile(path, data, 0600)
 }
 
 func (c *Config) IsConfigured() bool {
@@ -79,3 +78,4 @@ func (c *Config) PromptForCredentials() error {
 	}
 	return c.Save()
 }
+

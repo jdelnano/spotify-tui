@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"github.com/jdelnano/spotify-tui/spotify"
+	"github.com/jdelnano/spotify-tui/internal/spotify"
 	spotifyPkg "github.com/zmb3/spotify/v2"
 )
 

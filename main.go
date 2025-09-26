@@ -6,9 +6,9 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jdelnano/spotify-tui/auth"
-	"github.com/jdelnano/spotify-tui/config"
-	"github.com/jdelnano/spotify-tui/spotify"
+	"github.com/jdelnano/spotify-tui/internal/auth"
+	"github.com/jdelnano/spotify-tui/internal/config"
+	"github.com/jdelnano/spotify-tui/internal/spotify"
 	"github.com/jdelnano/spotify-tui/ui"
 )
 
@@ -78,7 +78,7 @@ func main() {
 	model := ui.NewModel(spotifyClient)
 
 	// Start the TUI
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(&model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v", err)
 		os.Exit(1)
