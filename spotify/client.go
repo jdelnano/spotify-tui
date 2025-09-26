@@ -195,6 +195,27 @@ func (c *Client) GetRecentlyPlayed() ([]spotify.RecentlyPlayedItem, error) {
 	return recent, nil
 }
 
+func (c *Client) GetActiveDevice() (spotify.ID, error) {
+	devices, err := c.client.PlayerDevices(c.ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get devices: %w", err)
+	}
+
+	if len(devices) == 0 {
+		return "", fmt.Errorf("no active devices found. Please open Spotify on a device")
+	}
+
+	// First try to find an actively playing device
+	for _, device := range devices {
+		if device.Active {
+			return device.ID, nil
+		}
+	}
+
+	// If no active device, use the first available device
+	return devices[0].ID, nil
+}
+
 func (c *Client) FormatTrackInfo(track *spotify.FullTrack) string {
 	artists := ""
 	for i, artist := range track.Artists {

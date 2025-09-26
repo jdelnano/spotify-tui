@@ -350,25 +350,9 @@ func (m Model) searchTracks() tea.Cmd {
 
 func (m Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
 	return func() tea.Msg {
-		devices, err := m.spotifyClient.GetDevices()
+		activeDevice, err := m.spotifyClient.GetActiveDevice()
 		if err != nil {
 			return errMsg{err}
-		}
-
-		if len(devices) == 0 {
-			return statusMsg{"No active devices found. Please open Spotify on a device."}
-		}
-
-		var activeDevice spotifyPkg.ID
-		for _, device := range devices {
-			if device.Active {
-				activeDevice = device.ID
-				break
-			}
-		}
-
-		if activeDevice == "" {
-			activeDevice = devices[0].ID
 		}
 
 		err = m.spotifyClient.PlayTrack(activeDevice, track.Track.URI)
@@ -386,25 +370,9 @@ func (m Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
 
 func (m Model) playSearchResult(track spotifyPkg.FullTrack) tea.Cmd {
 	return func() tea.Msg {
-		devices, err := m.spotifyClient.GetDevices()
+		activeDevice, err := m.spotifyClient.GetActiveDevice()
 		if err != nil {
 			return errMsg{err}
-		}
-
-		if len(devices) == 0 {
-			return statusMsg{"No active devices found. Please open Spotify on a device."}
-		}
-
-		var activeDevice spotifyPkg.ID
-		for _, device := range devices {
-			if device.Active {
-				activeDevice = device.ID
-				break
-			}
-		}
-
-		if activeDevice == "" {
-			activeDevice = devices[0].ID
 		}
 
 		err = m.spotifyClient.PlayTrack(activeDevice, track.URI)
@@ -570,25 +538,9 @@ func (m Model) loadLibraryItems(category LibraryCategory) tea.Cmd {
 
 func (m Model) playSavedTrack(track spotifyPkg.SavedTrack) tea.Cmd {
 	return func() tea.Msg {
-		devices, err := m.spotifyClient.GetDevices()
+		activeDevice, err := m.spotifyClient.GetActiveDevice()
 		if err != nil {
 			return errMsg{err}
-		}
-
-		if len(devices) == 0 {
-			return statusMsg{"No active devices found. Please open Spotify on a device."}
-		}
-
-		var activeDevice spotifyPkg.ID
-		for _, device := range devices {
-			if device.Active {
-				activeDevice = device.ID
-				break
-			}
-		}
-
-		if activeDevice == "" {
-			activeDevice = devices[0].ID
 		}
 
 		err = m.spotifyClient.PlayTrack(activeDevice, track.URI)
