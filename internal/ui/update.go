@@ -267,6 +267,8 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.nextTrack()
 
 	case "<":
+		// Check to see if we have a previous track to fall back on, and if not just
+		// return nil and don't disrupt the listening experience
 		if len(m.recentlyPlayed) == 0 {
 			return m, nil
 		}
@@ -443,30 +445,7 @@ func (m *Model) togglePlayback() tea.Cmd {
 
 func (m *Model) nextTrack() tea.Cmd {
 	return func() tea.Msg {
-		err := m.spotifyClient.Next()
-		if err != nil {
-			return errMsg{err}
-		}
-		return statusMsg{"Skipped to next track"}
-	}
-}
-
-func (m *Model) previousTrack(track *spotifyPkg.RecentlyPlayedItem) tea.Cmd {
-	return func() tea.Msg {
-		if len(m.recentlyPlayed) == 0 {
-			return statusMsg{"The previous track queue is empty"}
-		}
-
-		newCurrentTrack := spotifyPkg.PlaylistTrack{
-			Track: spotifyPkg.FullTrack{
-				SimpleTrack: track.Track,
-			},
-		}
-
-		// play the "new" track
-		m.playTrack(newCurrentTrack)
-
-		return statusMsg{fmt.Sprintf("Playing: %s - %s", m.currentlyPlaying.Item.Name, m.currentlyPlaying.Item.Artists[0].Name)}
+		return statusMsg{"Next track is not yet implemented"}
 	}
 }
 

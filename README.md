@@ -25,7 +25,8 @@ A terminal user interface (TUI) for Spotify built with Go and Bubble Tea.
 3. Fill in the app details:
    - App name: "Spotify TUI" (or your preference)
    - App description: "Terminal UI for Spotify"
-   - Redirect URI: `http://localhost:8080/callback`
+   - Redirect URI: `http://127.0.0.1:8080/callback`
+     - NOTE:  It cannot be localhost:  It must be 127.0.0.1
 4. Click "Create"
 5. Go to your app settings and note your:
    - Client ID
@@ -33,15 +34,39 @@ A terminal user interface (TUI) for Spotify built with Go and Bubble Tea.
 
 ### 2. Build and Run
 
+The project includes a Makefile for common tasks:
+
 ```bash
 # Install dependencies
 go mod download
 
 # Build the application
+make build
+
+# Run the application directly
+make run
+
+# Or run the built binary
+./spotify-tui
+
+# Clean build artifacts
+make clean
+
+# Run tests
+make test
+
+# Show all available make targets
+make help
+```
+
+Alternatively, you can use the standard Go commands:
+
+```bash
+# Build manually
 go build -o spotify-tui
 
-# Run the application
-./spotify-tui
+# Run directly
+go run ./cmd/main.go
 ```
 
 On first run, you'll be prompted to enter your Spotify Client ID and Client Secret. These will be saved in `~/.spotify-tui/config.json`.
@@ -84,3 +109,4 @@ On first run, you'll be prompted to enter your Spotify Client ID and Client Secr
 ## License
 
 MIT
+

@@ -9,7 +9,7 @@ import (
 	"github.com/jdelnano/spotify-tui/internal/auth"
 	"github.com/jdelnano/spotify-tui/internal/config"
 	"github.com/jdelnano/spotify-tui/internal/spotify"
-	"github.com/jdelnano/spotify-tui/ui"
+	"github.com/jdelnano/spotify-tui/internal/ui"
 )
 
 func main() {
