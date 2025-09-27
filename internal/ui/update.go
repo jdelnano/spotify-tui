@@ -66,7 +66,7 @@ func (m *Model) Init() tea.Cmd {
 		m.loadPlaylists(),
 		m.loadLibrary(),
 		m.fetchCurrentlyPlaying(),
-		tea.Every(time.Second*5, func(t time.Time) tea.Msg {
+		tea.Every(time.Second*1, func(t time.Time) tea.Msg {
 			return t
 		}),
 	)
@@ -107,10 +107,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case time.Time:
-		if m.viewMode == NowPlayingView {
-			return m, m.fetchCurrentlyPlaying()
+		// Increment progress locally for smooth updates
+		if m.currentlyPlaying.Playing {
+			// Add 1 second to progress
+			m.currentlyPlaying.Progress += 1000
+
+			// Don't let it exceed the track duration
+			if m.currentlyPlaying.Progress > m.currentlyPlaying.Item.Duration {
+				m.currentlyPlaying.Progress = m.currentlyPlaying.Item.Duration
+			}
 		}
-		return m, nil
+		// Always fetch currently playing info for live updates
+		return m, m.fetchCurrentlyPlaying()
 
 	case errMsg:
 		m.err = msg.err
@@ -188,9 +196,6 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchQuery = ""
 		return m, nil
 
-	case "n":
-		m.viewMode = NowPlayingView
-		return m, m.fetchCurrentlyPlaying()
 	case "p":
 		m.viewMode = PlaylistView
 	case "tab":
@@ -481,9 +486,12 @@ func (m *Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
 			return errMsg{err}
 		}
 
-		// Change the model state to reflect we started a song
-		m.currentlyPlaying.Playing = true
-		m.currentlyPlaying.Item = &track.Track
+		// Update the currently playing state immediately
+		m.currentlyPlaying = &spotifyPkg.CurrentlyPlaying{
+			Playing:  true,
+			Item:     &track.Track,
+			Progress: 0,
+		}
 
 		return statusMsg{fmt.Sprintf("Playing: %s - %s", track.Track.Name, track.Track.Artists[0].Name)}
 	}
@@ -500,9 +508,12 @@ func (m *Model) playSearchResult(track spotifyPkg.FullTrack) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
-		// Change the model state to reflect we started a song
-		m.currentlyPlaying.Playing = true
-		m.currentlyPlaying.Item = &track
+		// Update the currently playing state immediately
+		m.currentlyPlaying = &spotifyPkg.CurrentlyPlaying{
+			Playing:  true,
+			Item:     &track,
+			Progress: 0,
+		}
 
 		return statusMsg{fmt.Sprintf("Playing: %s - %s", track.Name, track.Artists[0].Name)}
 	}
@@ -540,24 +551,39 @@ func (m *Model) togglePlayback() tea.Cmd {
 			DeviceID: &activeDevice.ID,
 		}
 
-		if m.currentlyPlaying.Playing {
+		if m.currentlyPlaying != nil && m.currentlyPlaying.Playing {
 			err := m.spotifyClient.Pause(opts)
 			if err != nil {
 				return errMsg{err}
 			}
-			// Change the model state to reflect we just pasued the song
+			// Change the model state to reflect we just paused the song
 			m.currentlyPlaying.Playing = false
 
-			return statusMsg{fmt.Sprintf("Paused: %s - %s", m.currentlyPlaying.Item.Name, m.currentlyPlaying.Item.SimpleTrack.Artists[0].Name)}
+			if m.currentlyPlaying.Item != nil {
+				artists := ""
+				if len(m.currentlyPlaying.Item.Artists) > 0 {
+					artists = m.currentlyPlaying.Item.Artists[0].Name
+				}
+				return statusMsg{fmt.Sprintf("Paused: %s - %s", m.currentlyPlaying.Item.Name, artists)}
+			}
+			return statusMsg{"Paused"}
 		} else {
 			err := m.spotifyClient.Resume(opts)
 			if err != nil {
 				return errMsg{err}
 			}
 			// Change the model state to reflect we just resumed the song
-			m.currentlyPlaying.Playing = true
-
-			return statusMsg{fmt.Sprintf("Playing: %s - %s", m.currentlyPlaying.Item.Name, m.currentlyPlaying.Item.SimpleTrack.Artists[0].Name)}
+			if m.currentlyPlaying != nil {
+				m.currentlyPlaying.Playing = true
+				if m.currentlyPlaying.Item != nil {
+					artists := ""
+					if len(m.currentlyPlaying.Item.Artists) > 0 {
+						artists = m.currentlyPlaying.Item.Artists[0].Name
+					}
+					return statusMsg{fmt.Sprintf("Playing: %s - %s", m.currentlyPlaying.Item.Name, artists)}
+				}
+			}
+			return statusMsg{"Resumed"}
 		}
 	}
 }
@@ -572,6 +598,7 @@ func (m *Model) fetchCurrentlyPlaying() tea.Cmd {
 	return func() tea.Msg {
 		playing, err := m.spotifyClient.GetCurrentlyPlaying()
 		if err != nil {
+			// Don't show error, just return nil (no track playing)
 			return currentlyPlayingMsg{nil}
 		}
 		return currentlyPlayingMsg{playing}
@@ -808,6 +835,13 @@ func (m *Model) playSavedTrack(track spotifyPkg.SavedTrack) tea.Cmd {
 		err = m.spotifyClient.PlayTrack(activeDevice, track.URI)
 		if err != nil {
 			return errMsg{err}
+		}
+
+		// Update the currently playing state immediately
+		m.currentlyPlaying = &spotifyPkg.CurrentlyPlaying{
+			Playing:  true,
+			Item:     &track.FullTrack,
+			Progress: 0,
 		}
 
 		// Get artist names

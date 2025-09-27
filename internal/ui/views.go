@@ -43,6 +43,19 @@ var (
 				BorderStyle(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("62")).
 				Padding(0, 1)
+
+	nowPlayingPanelStyle = lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("35")). // Cyan/teal border
+				Background(lipgloss.Color("235")).      // Darker background
+				Padding(0, 1)
+
+	nowPlayingHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("87")) // Bright cyan
+
+	nowPlayingTextStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("255")) // Bright white
 )
 
 func (m Model) View() string {
@@ -65,11 +78,21 @@ func (m Model) mainView() string {
 	playlistPanel := m.renderPlaylistPanel()
 	trackPanel := m.renderTrackPanel()
 
-	leftColumnWidth := m.width / 3
-	trackWidth := m.width - leftColumnWidth - 4
+	leftColumnWidth := m.width / 4  // Changed from 1/3 to 1/4 to make left column narrower
+	trackWidth := m.width - leftColumnWidth - 4  // Track panel gets the remaining space
 
 	libraryHeight := 10
 	playlistHeight := m.height - libraryHeight - 4
+
+	// Calculate heights for track panel and now playing section
+	nowPlayingHeight := 0
+	trackPanelHeight := m.height - 3
+
+	// If there's something playing, allocate space for now playing section
+	if m.currentlyPlaying != nil && m.currentlyPlaying.Item != nil {
+		nowPlayingHeight = 8 // Space for now playing info
+		trackPanelHeight = m.height - nowPlayingHeight - 4
+	}
 
 	libraryPanel = lipgloss.NewStyle().
 		Width(leftColumnWidth).
@@ -89,13 +112,30 @@ func (m Model) mainView() string {
 
 	trackPanel = lipgloss.NewStyle().
 		Width(trackWidth).
-		Height(m.height - 3).
+		Height(trackPanelHeight).
 		Render(trackPanel)
+
+	// Build right column with track panel and now playing
+	var rightColumn string
+	if m.currentlyPlaying != nil && m.currentlyPlaying.Item != nil {
+		nowPlayingPanel := m.renderNowPlayingPanel()
+		nowPlayingPanel = lipgloss.NewStyle().
+			Width(trackWidth).
+			Height(nowPlayingHeight).
+			Render(nowPlayingPanel)
+		rightColumn = lipgloss.JoinVertical(
+			lipgloss.Left,
+			trackPanel,
+			nowPlayingPanel,
+		)
+	} else {
+		rightColumn = trackPanel
+	}
 
 	main := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		leftColumn,
-		trackPanel,
+		rightColumn,
 	)
 
 	status := m.renderStatusBar()
@@ -146,6 +186,12 @@ func (m Model) renderPlaylistPanel() string {
 func (m Model) renderTrackPanel() string {
 	var content strings.Builder
 
+	// Calculate available height for track listing
+	availableHeight := m.height - 8
+	if m.currentlyPlaying != nil && m.currentlyPlaying.Item != nil {
+		availableHeight = m.height - 16 // Less space when now playing is shown
+	}
+
 	if m.selectedLibraryItem != nil {
 		content.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", m.selectedLibraryItem.Icon, m.selectedLibraryItem.Name)) + "\n\n")
 
@@ -155,7 +201,7 @@ func (m Model) renderTrackPanel() string {
 			} else {
 				visibleStart := 0
 				visibleEnd := len(m.savedTracks)
-				maxVisible := m.height - 8
+				maxVisible := availableHeight
 
 				if len(m.savedTracks) > maxVisible {
 					if m.trackCursor >= maxVisible {
@@ -215,7 +261,7 @@ func (m Model) renderTrackPanel() string {
 				} else {
 					visibleStart := 0
 					visibleEnd := len(m.albumTracks)
-					maxVisible := m.height - 8
+					maxVisible := availableHeight
 
 					if len(m.albumTracks) > maxVisible {
 						if m.albumTrackCursor >= maxVisible {
@@ -255,7 +301,7 @@ func (m Model) renderTrackPanel() string {
 			} else {
 				visibleStart := 0
 				visibleEnd := len(m.savedAlbums)
-				maxVisible := m.height - 8
+				maxVisible := availableHeight
 
 				if len(m.savedAlbums) > maxVisible {
 					if m.albumCursor >= maxVisible {
@@ -304,7 +350,7 @@ func (m Model) renderTrackPanel() string {
 			} else {
 				visibleStart := 0
 				visibleEnd := len(m.playlistTracks)
-				maxVisible := m.height - 8
+				maxVisible := availableHeight
 
 				if len(m.playlistTracks) > maxVisible {
 					if m.trackCursor >= maxVisible {
@@ -349,7 +395,7 @@ func (m Model) renderTrackPanel() string {
 		} else {
 			visibleStart := 0
 			visibleEnd := len(m.playlistTracks)
-			maxVisible := m.height - 8
+			maxVisible := availableHeight
 
 			if len(m.playlistTracks) > maxVisible {
 				if m.trackCursor >= maxVisible {
@@ -525,8 +571,45 @@ func (m Model) renderLibraryPanel() string {
 	return libraryPanelStyle.Render(content.String())
 }
 
+func (m Model) renderNowPlayingPanel() string {
+	var content strings.Builder
+
+	if m.currentlyPlaying != nil && m.currentlyPlaying.Item != nil {
+		track := m.currentlyPlaying.Item
+		artists := ""
+		for i, artist := range track.Artists {
+			if i > 0 {
+				artists += ", "
+			}
+			artists += artist.Name
+		}
+
+		// Track info with play button icon
+		content.WriteString(nowPlayingHeaderStyle.Render("▶ Now Playing") + "\n")
+		content.WriteString(nowPlayingTextStyle.Render(fmt.Sprintf("%s - %s\n", track.Name, artists)))
+
+		// Progress bar
+		progress := int(m.currentlyPlaying.Progress) / 1000
+		duration := int(track.Duration) / 1000
+		progressBar := m.renderProgressBar(progress, duration, 40)
+		content.WriteString(nowPlayingTextStyle.Render(fmt.Sprintf("\n%s ", progressBar)))
+		content.WriteString(nowPlayingTextStyle.Render(fmt.Sprintf("%d:%02d / %d:%02d  ",
+			progress/60, progress%60,
+			duration/60, duration%60)))
+
+		// Playing status
+		if m.currentlyPlaying.Playing {
+			content.WriteString(nowPlayingTextStyle.Render("▶ Playing"))
+		} else {
+			content.WriteString(nowPlayingTextStyle.Render("⏸ Paused"))
+		}
+	}
+
+	return nowPlayingPanelStyle.Render(content.String())
+}
+
 func (m Model) renderStatusBar() string {
-	help := "↑↓: Navigate | Tab: Switch Section | Enter: Select | /: Search | n: Now Playing | Space: Play/Pause | q: Quit"
+	help := "↑↓: Navigate | Tab: Switch Section | Enter: Select | /: Search | Space: Play/Pause | q: Quit"
 	if m.statusMessage != "" {
 		help = m.statusMessage
 	}
