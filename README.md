@@ -32,9 +32,11 @@ A terminal user interface (TUI) for Spotify built with Go and Bubble Tea.
    - Client ID
    - Client Secret
 
-### 2. Build and Run
+### 2. Download OR Build and Run
 
-The project includes a Makefile for common tasks:
+You can download a binary for your particular OS and architecture at <https://github.com/jdelnano/spotify-tui/releases/>.
+
+But if you want to build the project yourself, there is a Makefile for common tasks:
 
 ```bash
 # Install dependencies
