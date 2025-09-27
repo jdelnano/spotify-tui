@@ -6,11 +6,11 @@ A terminal user interface (TUI) for Spotify built with Go and Bubble Tea.
 
 ## Features
 
-- Browse and play your Spotify playlists
+- Browse and play your Spotify playlists, Liked Songs, Recently Played, and Saved Albums
 - Search for tracks
-- Control playback (play/pause, next, previous)
+- Control playback (play/pause, previous)
 - View currently playing track
-- Beautiful terminal interface with playlist sidebar
+- Terminal interface with playlist sidebar
 
 ## Prerequisites
 
@@ -78,9 +78,8 @@ On first run, you'll be prompted to enter your Spotify Client ID and Client Secr
 - `Enter`: Select playlist or play track
 - `/`: Enter search mode
 - `n`: View now playing
-- `p`: Return to playlist view
+- `p`: Return to playlist/player view
 - `Space`: Play/Pause
-- `>`: Next track
 - `<`: Previous track
 - `q` or `Ctrl+C`: Quit
 
@@ -88,7 +87,7 @@ On first run, you'll be prompted to enter your Spotify Client ID and Client Secr
 
 - Type to search for tracks
 - `Enter`: Execute search
-- `Esc`: Exit search mode
+- `p`: Return to playlist/player view
 - Use arrow keys to select results
 - `Enter`: Play selected track
 
