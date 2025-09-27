@@ -21,10 +21,10 @@ func main() {
 
 	// Check if we need to set up Spotify credentials
 	if !cfg.IsConfigured() {
-		fmt.Println("Welcome to Spotify TUI Player!")
+		fmt.Println("Welcome to the Go Spotify TUI Player!")
 		fmt.Println("\nTo use this app, you need to create a Spotify App:")
 		fmt.Println("1. Go to https://developer.spotify.com/dashboard")
-		fmt.Println("2. Create a new app")
+		fmt.Println("2. Create a new app, adding the Web API + Web Playback SDK APIs")
 		fmt.Println("3. Add http://127.0.0.1:8080/callback as a redirect URI")
 		fmt.Println("4. Copy your Client ID and Client Secret")
 
@@ -48,6 +48,7 @@ func main() {
 			// Update the token in config if it was refreshed
 			if newToken.AccessToken != cfg.Token.AccessToken {
 				cfg.Token = newToken
+				// set to true so we make sure to update $HOME/.spotify-tui/config.json later
 				tokenUpdated = true
 			}
 		} else {
@@ -64,6 +65,7 @@ func main() {
 		}
 		spotifyClient = spotify.NewClient(client)
 		cfg.Token = token
+		// set to true so we make sure to update $HOME/.spotify-tui/config.json later
 		tokenUpdated = true
 	}
 

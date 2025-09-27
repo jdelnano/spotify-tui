@@ -20,3 +20,4 @@ func NewModel(spotifyClient *spotify.Client) Model {
 		height:         24,
 	}
 }
+

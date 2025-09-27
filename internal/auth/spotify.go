@@ -144,8 +144,3 @@ func (s *SpotifyAuth) ClientFromToken(token *oauth2.Token) (*spotify.Client, *oa
 
 	return client, newToken, nil
 }
-
-func (s *SpotifyAuth) RefreshToken(token *oauth2.Token) (*spotify.Client, error) {
-	client := spotify.New(s.auth.Client(context.Background(), token))
-	return client, nil
-}
