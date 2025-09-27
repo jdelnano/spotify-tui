@@ -47,10 +47,10 @@ type Model struct {
 	err                 error
 
 	// Pagination state for saved tracks
-	savedTracksOffset   int
-	savedTracksTotal    int
-	isLoadingMore       bool
-	hasLoadedInitial    bool
+	savedTracksOffset int
+	savedTracksTotal  int
+	isLoadingMore     bool
+	hasLoadedInitial  bool
 
 	// Pagination state for saved albums
 	savedAlbumsOffset   int
@@ -59,8 +59,8 @@ type Model struct {
 	albumCursor         int
 
 	// Album view state
-	selectedAlbum       *spotifyPkg.SavedAlbum
-	albumTracks         []spotifyPkg.SimpleTrack
-	isViewingAlbum      bool
-	albumTrackCursor    int
+	selectedAlbum    *spotifyPkg.SavedAlbum
+	albumTracks      []spotifyPkg.SimpleTrack
+	isViewingAlbum   bool
+	albumTrackCursor int
 }

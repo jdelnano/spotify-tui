@@ -61,14 +61,22 @@ type albumTracksLoadedMsg struct {
 	album  *spotifyPkg.SavedAlbum
 }
 
+type tickMsg time.Time
+
+// Send a message every second
+func (m *Model) tickEvery() tea.Cmd {
+	// https://pkg.go.dev/github.com/charmbracelet/bubbletea@v1.3.10#Every
+	return tea.Every(time.Second, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadPlaylists(),
 		m.loadLibrary(),
 		m.fetchCurrentlyPlaying(),
-		tea.Every(time.Second*1, func(t time.Time) tea.Msg {
-			return t
-		}),
+		m.tickEvery(),
 	)
 }
 
@@ -103,22 +111,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case currentlyPlayingMsg:
+		// Update with the new playing state from Spotify
 		m.currentlyPlaying = msg.playing
 		return m, nil
 
-	case time.Time:
-		// Increment progress locally for smooth updates
-		if m.currentlyPlaying.Playing {
-			// Add 1 second to progress
-			m.currentlyPlaying.Progress += 1000
-
-			// Don't let it exceed the track duration
-			if m.currentlyPlaying.Progress > m.currentlyPlaying.Item.Duration {
-				m.currentlyPlaying.Progress = m.currentlyPlaying.Item.Duration
-			}
+	case tickMsg:
+		// Fetch current state to get real-time progress
+		playing, err := m.spotifyClient.GetCurrentlyPlaying()
+		if err != nil {
+			// Don't show error, just return nil (no track playing)
+			return m, nil
 		}
-		// Always fetch currently playing info for live updates
-		return m, m.fetchCurrentlyPlaying()
+		m.currentlyPlaying = playing
+
+		return m, m.tickEvery()
 
 	case errMsg:
 		m.err = msg.err
@@ -490,7 +496,7 @@ func (m *Model) playTrack(track spotifyPkg.PlaylistTrack) tea.Cmd {
 		m.currentlyPlaying = &spotifyPkg.CurrentlyPlaying{
 			Playing:  true,
 			Item:     &track.Track,
-			Progress: 0,
+			Progress: spotifyPkg.Numeric(0),
 		}
 
 		return statusMsg{fmt.Sprintf("Playing: %s - %s", track.Track.Name, track.Track.Artists[0].Name)}
@@ -512,7 +518,7 @@ func (m *Model) playSearchResult(track spotifyPkg.FullTrack) tea.Cmd {
 		m.currentlyPlaying = &spotifyPkg.CurrentlyPlaying{
 			Playing:  true,
 			Item:     &track,
-			Progress: 0,
+			Progress: spotifyPkg.Numeric(0),
 		}
 
 		return statusMsg{fmt.Sprintf("Playing: %s - %s", track.Name, track.Artists[0].Name)}
@@ -841,7 +847,7 @@ func (m *Model) playSavedTrack(track spotifyPkg.SavedTrack) tea.Cmd {
 		m.currentlyPlaying = &spotifyPkg.CurrentlyPlaying{
 			Playing:  true,
 			Item:     &track.FullTrack,
-			Progress: 0,
+			Progress: spotifyPkg.Numeric(0),
 		}
 
 		// Get artist names
