@@ -57,4 +57,10 @@ type Model struct {
 	savedAlbumsTotal    int
 	isLoadingMoreAlbums bool
 	albumCursor         int
+
+	// Album view state
+	selectedAlbum       *spotifyPkg.SavedAlbum
+	albumTracks         []spotifyPkg.SimpleTrack
+	isViewingAlbum      bool
+	albumTrackCursor    int
 }

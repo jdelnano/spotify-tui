@@ -213,6 +213,27 @@ func (c *Client) GetSavedAlbumsCount() (int, error) {
 	return int(albums.Total), nil
 }
 
+func (c *Client) GetAlbumTracks(albumID spotify.ID) ([]spotify.SimpleTrack, error) {
+	tracks, err := c.client.GetAlbumTracks(c.ctx, albumID, spotify.Limit(50))
+	if err != nil {
+		return nil, err
+	}
+
+	var allTracks []spotify.SimpleTrack
+	for page := 1; ; page++ {
+		allTracks = append(allTracks, tracks.Tracks...)
+		err = c.client.NextPage(c.ctx, tracks)
+		if err == spotify.ErrNoMorePages {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return allTracks, nil
+}
+
 func (c *Client) GetFollowedArtists() ([]spotify.FullArtist, error) {
 	artists, err := c.client.CurrentUsersFollowedArtists(c.ctx, spotify.Limit(50))
 	if err != nil {

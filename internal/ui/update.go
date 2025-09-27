@@ -56,6 +56,11 @@ type moreAlbumsLoadedMsg struct {
 	albums []spotifyPkg.SavedAlbum
 }
 
+type albumTracksLoadedMsg struct {
+	tracks []spotifyPkg.SimpleTrack
+	album  *spotifyPkg.SavedAlbum
+}
+
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadPlaylists(),
@@ -159,6 +164,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isLoadingMoreAlbums = false
 		m.statusMessage = fmt.Sprintf("Loaded %d/%d albums", len(m.savedAlbums), m.savedAlbumsTotal)
 		return m, nil
+
+	case albumTracksLoadedMsg:
+		m.albumTracks = msg.tracks
+		m.selectedAlbum = msg.album
+		m.isViewingAlbum = true
+		m.albumTrackCursor = 0
+		m.statusMessage = fmt.Sprintf("Loaded %d tracks from %s", len(msg.tracks), msg.album.Name)
+		return m, nil
 	}
 
 	return m, nil
@@ -203,7 +216,9 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.selectedPlaylist != nil || m.selectedLibraryItem != nil {
 				if m.selectedLibraryItem != nil && m.selectedLibraryItem.Type == "saved_albums" {
-					if m.albumCursor > 0 {
+					if m.isViewingAlbum && m.albumTrackCursor > 0 {
+						m.albumTrackCursor--
+					} else if !m.isViewingAlbum && m.albumCursor > 0 {
 						m.albumCursor--
 					}
 				} else if m.trackCursor > 0 {
@@ -242,13 +257,17 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 						m.savedTracksOffset < m.savedTracksTotal {
 						return m, m.loadMoreSavedTracks()
 					}
-				} else if m.selectedLibraryItem.Type == "saved_albums" && m.albumCursor < len(m.savedAlbums)-1 {
-					m.albumCursor++
-					// Load more albums if we're near the end
-					if m.albumCursor >= len(m.savedAlbums)-5 &&
-						!m.isLoadingMoreAlbums &&
-						m.savedAlbumsOffset < m.savedAlbumsTotal {
-						return m, m.loadMoreSavedAlbums()
+				} else if m.selectedLibraryItem.Type == "saved_albums" {
+					if m.isViewingAlbum && m.albumTrackCursor < len(m.albumTracks)-1 {
+						m.albumTrackCursor++
+					} else if !m.isViewingAlbum && m.albumCursor < len(m.savedAlbums)-1 {
+						m.albumCursor++
+						// Load more albums if we're near the end
+						if m.albumCursor >= len(m.savedAlbums)-5 &&
+							!m.isLoadingMoreAlbums &&
+							m.savedAlbumsOffset < m.savedAlbumsTotal {
+							return m, m.loadMoreSavedAlbums()
+						}
 					}
 				} else if m.selectedLibraryItem.Type == "playlist" && m.trackCursor < len(m.playlistTracks)-1 {
 					m.trackCursor++
@@ -270,20 +289,32 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.playlistTracks = nil
 				m.trackCursor = 0
 			} else if m.selectedLibraryItem != nil {
-				// Reset pagination state when leaving library items
-				m.selectedLibraryItem = nil
-				m.savedTracks = nil
-				m.savedAlbums = nil
-				m.playlistTracks = nil
-				m.trackCursor = 0
-				m.albumCursor = 0
-				m.savedTracksOffset = 0
-				m.savedTracksTotal = 0
-				m.savedAlbumsOffset = 0
-				m.savedAlbumsTotal = 0
-				m.hasLoadedInitial = false
-				m.isLoadingMore = false
-				m.isLoadingMoreAlbums = false
+				// If viewing album tracks, go back to album list
+				if m.isViewingAlbum && m.selectedLibraryItem.Type == "saved_albums" {
+					m.isViewingAlbum = false
+					m.selectedAlbum = nil
+					m.albumTracks = nil
+					m.albumTrackCursor = 0
+				} else {
+					// Reset pagination state when leaving library items
+					m.selectedLibraryItem = nil
+					m.savedTracks = nil
+					m.savedAlbums = nil
+					m.playlistTracks = nil
+					m.trackCursor = 0
+					m.albumCursor = 0
+					m.savedTracksOffset = 0
+					m.savedTracksTotal = 0
+					m.savedAlbumsOffset = 0
+					m.savedAlbumsTotal = 0
+					m.hasLoadedInitial = false
+					m.isLoadingMore = false
+					m.isLoadingMoreAlbums = false
+					m.isViewingAlbum = false
+					m.selectedAlbum = nil
+					m.albumTracks = nil
+					m.albumTrackCursor = 0
+				}
 			}
 		}
 		return m, nil
@@ -308,6 +339,14 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 						})
 					}
 					return m, m.playSavedTrack(m.savedTracks[m.trackCursor])
+				} else if m.selectedLibraryItem.Type == "saved_albums" {
+					if m.isViewingAlbum && len(m.albumTracks) > 0 {
+						// Play a track from the album
+						return m, m.playAlbumTrack(m.albumTracks[m.albumTrackCursor])
+					} else if len(m.savedAlbums) > 0 {
+						// Select an album to view its tracks
+						return m, m.loadAlbumTracks(m.savedAlbums[m.albumCursor])
+					}
 				} else if m.selectedLibraryItem.Type == "playlist" && len(m.playlistTracks) > 0 {
 					// Add current track to recently played before playing new one
 					if m.currentlyPlaying != nil && m.currentlyPlaying.Item != nil {
@@ -362,62 +401,6 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.playTrack(newCurrentTrack)
 
-	case "pgdown":
-		// Page down for faster scrolling
-		if m.viewMode == PlaylistView && m.selectedLibraryItem != nil {
-			if m.selectedLibraryItem.Type == "saved_tracks" || m.selectedLibraryItem.Type == "recently_played" {
-				pageSize := 20
-				newCursor := m.trackCursor + pageSize
-				if newCursor >= len(m.savedTracks) {
-					newCursor = len(m.savedTracks) - 1
-				}
-				m.trackCursor = newCursor
-
-				// Load more if needed
-				if m.selectedLibraryItem.Type == "saved_tracks" &&
-					m.trackCursor >= len(m.savedTracks)-10 &&
-					!m.isLoadingMore &&
-					m.savedTracksOffset < m.savedTracksTotal {
-					return m, m.loadMoreSavedTracks()
-				}
-			} else if m.selectedLibraryItem.Type == "saved_albums" {
-				pageSize := 10
-				newCursor := m.albumCursor + pageSize
-				if newCursor >= len(m.savedAlbums) {
-					newCursor = len(m.savedAlbums) - 1
-				}
-				m.albumCursor = newCursor
-
-				// Load more if needed
-				if m.albumCursor >= len(m.savedAlbums)-5 &&
-					!m.isLoadingMoreAlbums &&
-					m.savedAlbumsOffset < m.savedAlbumsTotal {
-					return m, m.loadMoreSavedAlbums()
-				}
-			}
-		}
-		return m, nil
-
-	case "pgup":
-		// Page up for faster scrolling
-		if m.viewMode == PlaylistView && m.selectedLibraryItem != nil {
-			if m.selectedLibraryItem.Type == "saved_tracks" || m.selectedLibraryItem.Type == "recently_played" {
-				pageSize := 20
-				newCursor := m.trackCursor - pageSize
-				if newCursor < 0 {
-					newCursor = 0
-				}
-				m.trackCursor = newCursor
-			} else if m.selectedLibraryItem.Type == "saved_albums" {
-				pageSize := 10
-				newCursor := m.albumCursor - pageSize
-				if newCursor < 0 {
-					newCursor = 0
-				}
-				m.albumCursor = newCursor
-			}
-		}
-		return m, nil
 	}
 
 	return m, nil
@@ -762,6 +745,59 @@ func (m *Model) loadMoreSavedAlbums() tea.Cmd {
 	}
 }
 
+func (m *Model) loadAlbumTracks(album spotifyPkg.SavedAlbum) tea.Cmd {
+	return func() tea.Msg {
+		tracks, err := m.spotifyClient.GetAlbumTracks(album.ID)
+		if err != nil {
+			return errMsg{err}
+		}
+		return albumTracksLoadedMsg{tracks: tracks, album: &album}
+	}
+}
+
+func (m *Model) playAlbumTrack(track spotifyPkg.SimpleTrack) tea.Cmd {
+	return func() tea.Msg {
+		activeDevice, err := m.spotifyClient.GetActiveDevice()
+		if err != nil {
+			return errMsg{err}
+		}
+
+		err = m.spotifyClient.PlayTrack(activeDevice, track.URI)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		// Get artist names from the album
+		artists := ""
+		if m.selectedAlbum != nil {
+			for i, artist := range m.selectedAlbum.Artists {
+				if i > 0 {
+					artists += ", "
+				}
+				artists += artist.Name
+			}
+		}
+
+		// Add to recently played before playing new track
+		if m.currentlyPlaying != nil && m.currentlyPlaying.Item != nil {
+			m.recentlyPlayed = append(m.recentlyPlayed, &spotifyPkg.RecentlyPlayedItem{
+				Track: m.currentlyPlaying.Item.SimpleTrack,
+			})
+		}
+
+		// Update currently playing with the album track
+		// Note: We're creating a minimal FullTrack from SimpleTrack for tracking purposes
+		m.currentlyPlaying = &spotifyPkg.CurrentlyPlaying{
+			Playing: true,
+			Item: &spotifyPkg.FullTrack{
+				SimpleTrack: track,
+			},
+		}
+
+		return statusMsg{fmt.Sprintf("Playing: %s - %s", track.Name, artists)}
+	}
+}
+
 func (m *Model) playSavedTrack(track spotifyPkg.SavedTrack) tea.Cmd {
 	return func() tea.Msg {
 		activeDevice, err := m.spotifyClient.GetActiveDevice()
@@ -773,6 +809,16 @@ func (m *Model) playSavedTrack(track spotifyPkg.SavedTrack) tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
-		return statusMsg{fmt.Sprintf("Playing: %s", track.Name)}
+
+		// Get artist names
+		artists := ""
+		for i, artist := range track.Artists {
+			if i > 0 {
+				artists += ", "
+			}
+			artists += artist.Name
+		}
+
+		return statusMsg{fmt.Sprintf("Playing: %s - %s", track.Name, artists)}
 	}
 }

@@ -199,7 +199,58 @@ func (m Model) renderTrackPanel() string {
 				}
 			}
 		} else if m.selectedLibraryItem.Type == "saved_albums" {
-			if len(m.savedAlbums) == 0 {
+			// If viewing album tracks
+			if m.isViewingAlbum && m.selectedAlbum != nil {
+				artists := ""
+				for j, artist := range m.selectedAlbum.Artists {
+					if j > 0 {
+						artists += ", "
+					}
+					artists += artist.Name
+				}
+				content.WriteString(headerStyle.Render(fmt.Sprintf("💿 %s - %s", m.selectedAlbum.Name, artists)) + "\n\n")
+
+				if len(m.albumTracks) == 0 {
+					content.WriteString(statusStyle.Render("No tracks found"))
+				} else {
+					visibleStart := 0
+					visibleEnd := len(m.albumTracks)
+					maxVisible := m.height - 8
+
+					if len(m.albumTracks) > maxVisible {
+						if m.albumTrackCursor >= maxVisible {
+							visibleStart = m.albumTrackCursor - maxVisible + 1
+						}
+						visibleEnd = visibleStart + maxVisible
+						if visibleEnd > len(m.albumTracks) {
+							visibleEnd = len(m.albumTracks)
+						}
+					}
+
+					for i := visibleStart; i < visibleEnd; i++ {
+						track := m.albumTracks[i]
+
+						// Format track number and duration
+						trackNum := i + 1
+						duration := track.Duration / 1000 // Convert to seconds
+						durationStr := fmt.Sprintf("%d:%02d", duration/60, duration%60)
+
+						line := fmt.Sprintf(" %2d. %s (%s)", trackNum, track.Name, durationStr)
+						if len(line) > 60 {
+							line = line[:57] + "..."
+						}
+
+						if i == m.albumTrackCursor && m.viewMode == PlaylistView {
+							line = selectedStyle.Render("▶" + line)
+						} else {
+							line = normalStyle.Render(" " + line)
+						}
+						content.WriteString(line + "\n")
+					}
+
+					content.WriteString("\n" + statusStyle.Render("Press ← to go back to albums"))
+				}
+			} else if len(m.savedAlbums) == 0 {
 				content.WriteString(statusStyle.Render("No albums found"))
 			} else {
 				visibleStart := 0
@@ -475,7 +526,7 @@ func (m Model) renderLibraryPanel() string {
 }
 
 func (m Model) renderStatusBar() string {
-	help := "↑↓: Navigate | PgUp/PgDn: Fast scroll | Enter: Select | /: Search | n: Now Playing | Space: Play/Pause | q: Quit"
+	help := "↑↓: Navigate | Tab: Switch Section | Enter: Select | /: Search | n: Now Playing | Space: Play/Pause | q: Quit"
 	if m.statusMessage != "" {
 		help = m.statusMessage
 	}
