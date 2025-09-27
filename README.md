@@ -2,6 +2,8 @@
 
 A terminal user interface (TUI) for Spotify built with Go and Bubble Tea.
 
+![Demo](demo.gif)
+
 ## Features
 
 - Browse and play your Spotify playlists
