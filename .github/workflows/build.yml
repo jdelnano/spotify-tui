@@ -39,3 +39,6 @@ jobs:
           fi
         shell: bash
 
+      - name: Run tests
+        run: go test -v ./tests
+
