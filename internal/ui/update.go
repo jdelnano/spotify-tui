@@ -40,6 +40,22 @@ type savedTracksLoadedMsg struct {
 	tracks []spotifyPkg.SavedTrack
 }
 
+type recentlyPlayedLoadedMsg struct {
+	items []spotifyPkg.RecentlyPlayedItem
+}
+
+type moreTracksLoadedMsg struct {
+	tracks []spotifyPkg.SavedTrack
+}
+
+type savedAlbumsLoadedMsg struct {
+	albums []spotifyPkg.SavedAlbum
+}
+
+type moreAlbumsLoadedMsg struct {
+	albums []spotifyPkg.SavedAlbum
+}
+
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadPlaylists(),
@@ -109,6 +125,40 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.trackCursor = 0
 		m.statusMessage = fmt.Sprintf("Loaded %d liked songs", len(msg.tracks))
 		return m, nil
+
+	case recentlyPlayedLoadedMsg:
+		// Convert recently played items to saved tracks for display
+		m.savedTracks = nil
+		for _, item := range msg.items {
+			m.savedTracks = append(m.savedTracks, spotifyPkg.SavedTrack{
+				FullTrack: spotifyPkg.FullTrack{
+					SimpleTrack: item.Track,
+				},
+			})
+		}
+		m.trackCursor = 0
+		m.statusMessage = fmt.Sprintf("Loaded %d recently played tracks", len(msg.items))
+		return m, nil
+
+	case moreTracksLoadedMsg:
+		m.savedTracks = append(m.savedTracks, msg.tracks...)
+		m.savedTracksOffset += len(msg.tracks)
+		m.isLoadingMore = false
+		m.statusMessage = fmt.Sprintf("Loaded %d/%d tracks", len(m.savedTracks), m.savedTracksTotal)
+		return m, nil
+
+	case savedAlbumsLoadedMsg:
+		m.savedAlbums = msg.albums
+		m.albumCursor = 0
+		m.statusMessage = fmt.Sprintf("Loaded %d albums", len(msg.albums))
+		return m, nil
+
+	case moreAlbumsLoadedMsg:
+		m.savedAlbums = append(m.savedAlbums, msg.albums...)
+		m.savedAlbumsOffset += len(msg.albums)
+		m.isLoadingMoreAlbums = false
+		m.statusMessage = fmt.Sprintf("Loaded %d/%d albums", len(m.savedAlbums), m.savedAlbumsTotal)
+		return m, nil
 	}
 
 	return m, nil
@@ -152,7 +202,11 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.libraryCursor--
 				}
 			} else if m.selectedPlaylist != nil || m.selectedLibraryItem != nil {
-				if m.trackCursor > 0 {
+				if m.selectedLibraryItem != nil && m.selectedLibraryItem.Type == "saved_albums" {
+					if m.albumCursor > 0 {
+						m.albumCursor--
+					}
+				} else if m.trackCursor > 0 {
 					m.trackCursor--
 				}
 			}
@@ -179,8 +233,23 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.libraryCursor = -1
 				}
 			} else if m.selectedLibraryItem != nil {
-				if m.selectedLibraryItem.Type == "saved_tracks" && m.trackCursor < len(m.savedTracks)-1 {
+				if (m.selectedLibraryItem.Type == "saved_tracks" || m.selectedLibraryItem.Type == "recently_played") && m.trackCursor < len(m.savedTracks)-1 {
 					m.trackCursor++
+					// Load more tracks if we're near the end and it's saved_tracks
+					if m.selectedLibraryItem.Type == "saved_tracks" &&
+						m.trackCursor >= len(m.savedTracks)-10 &&
+						!m.isLoadingMore &&
+						m.savedTracksOffset < m.savedTracksTotal {
+						return m, m.loadMoreSavedTracks()
+					}
+				} else if m.selectedLibraryItem.Type == "saved_albums" && m.albumCursor < len(m.savedAlbums)-1 {
+					m.albumCursor++
+					// Load more albums if we're near the end
+					if m.albumCursor >= len(m.savedAlbums)-5 &&
+						!m.isLoadingMoreAlbums &&
+						m.savedAlbumsOffset < m.savedAlbumsTotal {
+						return m, m.loadMoreSavedAlbums()
+					}
 				} else if m.selectedLibraryItem.Type == "playlist" && m.trackCursor < len(m.playlistTracks)-1 {
 					m.trackCursor++
 				}
@@ -201,10 +270,20 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.playlistTracks = nil
 				m.trackCursor = 0
 			} else if m.selectedLibraryItem != nil {
+				// Reset pagination state when leaving library items
 				m.selectedLibraryItem = nil
 				m.savedTracks = nil
+				m.savedAlbums = nil
 				m.playlistTracks = nil
 				m.trackCursor = 0
+				m.albumCursor = 0
+				m.savedTracksOffset = 0
+				m.savedTracksTotal = 0
+				m.savedAlbumsOffset = 0
+				m.savedAlbumsTotal = 0
+				m.hasLoadedInitial = false
+				m.isLoadingMore = false
+				m.isLoadingMoreAlbums = false
 			}
 		}
 		return m, nil
@@ -221,7 +300,7 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					return m, m.loadPlaylistTracks(m.playlists[m.playlistCursor].ID)
 				}
 			} else if m.selectedLibraryItem != nil {
-				if m.selectedLibraryItem.Type == "saved_tracks" && len(m.savedTracks) > 0 {
+				if (m.selectedLibraryItem.Type == "saved_tracks" || m.selectedLibraryItem.Type == "recently_played") && len(m.savedTracks) > 0 {
 					// Add current track to recently played before playing new one
 					if m.currentlyPlaying != nil && m.currentlyPlaying.Item != nil {
 						m.recentlyPlayed = append(m.recentlyPlayed, &spotifyPkg.RecentlyPlayedItem{
@@ -282,6 +361,63 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			},
 		}
 		return m, m.playTrack(newCurrentTrack)
+
+	case "pgdown":
+		// Page down for faster scrolling
+		if m.viewMode == PlaylistView && m.selectedLibraryItem != nil {
+			if m.selectedLibraryItem.Type == "saved_tracks" || m.selectedLibraryItem.Type == "recently_played" {
+				pageSize := 20
+				newCursor := m.trackCursor + pageSize
+				if newCursor >= len(m.savedTracks) {
+					newCursor = len(m.savedTracks) - 1
+				}
+				m.trackCursor = newCursor
+
+				// Load more if needed
+				if m.selectedLibraryItem.Type == "saved_tracks" &&
+					m.trackCursor >= len(m.savedTracks)-10 &&
+					!m.isLoadingMore &&
+					m.savedTracksOffset < m.savedTracksTotal {
+					return m, m.loadMoreSavedTracks()
+				}
+			} else if m.selectedLibraryItem.Type == "saved_albums" {
+				pageSize := 10
+				newCursor := m.albumCursor + pageSize
+				if newCursor >= len(m.savedAlbums) {
+					newCursor = len(m.savedAlbums) - 1
+				}
+				m.albumCursor = newCursor
+
+				// Load more if needed
+				if m.albumCursor >= len(m.savedAlbums)-5 &&
+					!m.isLoadingMoreAlbums &&
+					m.savedAlbumsOffset < m.savedAlbumsTotal {
+					return m, m.loadMoreSavedAlbums()
+				}
+			}
+		}
+		return m, nil
+
+	case "pgup":
+		// Page up for faster scrolling
+		if m.viewMode == PlaylistView && m.selectedLibraryItem != nil {
+			if m.selectedLibraryItem.Type == "saved_tracks" || m.selectedLibraryItem.Type == "recently_played" {
+				pageSize := 20
+				newCursor := m.trackCursor - pageSize
+				if newCursor < 0 {
+					newCursor = 0
+				}
+				m.trackCursor = newCursor
+			} else if m.selectedLibraryItem.Type == "saved_albums" {
+				pageSize := 10
+				newCursor := m.albumCursor - pageSize
+				if newCursor < 0 {
+					newCursor = 0
+				}
+				m.albumCursor = newCursor
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -463,30 +599,90 @@ func (m *Model) loadLibrary() tea.Cmd {
 	return func() tea.Msg {
 		var categories []LibraryCategory
 
-		// Fetch Liked Songs count
-		savedTracks, err := m.spotifyClient.GetSavedTracks()
-
-		if err == nil {
+		// Fetch Liked Songs count (just the count, not all tracks)
+		savedTracksCount, err := m.spotifyClient.GetSavedTracksCount()
+		if err == nil && savedTracksCount > 0 {
 			categories = append(categories, LibraryCategory{
 				Name:      "Liked Songs",
 				Icon:      "❤️",
 				Type:      "saved_tracks",
-				ItemCount: min(len(savedTracks), 100),
+				ItemCount: savedTracksCount,
 			})
 		}
 
-		// Fetch Release Radar
-		releaseRadar, err := m.spotifyClient.GetPlaylistByName("Release Radar")
-		fmt.Println(releaseRadar)
-		if err == nil && releaseRadar != nil {
-			// Get track count for Release Radar
-			tracks, _ := m.spotifyClient.GetPlaylistTracks(releaseRadar.ID)
+		// Fetch all user playlists to find special ones
+		playlists, _ := m.spotifyClient.GetPlaylists()
+
+		// Look for Release Radar
+		for _, playlist := range playlists {
+			if playlist.Name == "Release Radar" {
+				trackCount := int(playlist.Tracks.Total)
+				categories = append(categories, LibraryCategory{
+					Name:       "Release Radar",
+					Icon:       "📡",
+					Type:       "playlist",
+					ItemCount:  trackCount,
+					PlaylistID: playlist.ID,
+				})
+				break
+			}
+		}
+
+		// Look for Discover Weekly
+		for _, playlist := range playlists {
+			if playlist.Name == "Discover Weekly" {
+				trackCount := int(playlist.Tracks.Total)
+				categories = append(categories, LibraryCategory{
+					Name:       "Discover Weekly",
+					Icon:       "🎲",
+					Type:       "playlist",
+					ItemCount:  trackCount,
+					PlaylistID: playlist.ID,
+				})
+				break
+			}
+		}
+
+		// Look for Daily Mix playlists
+		for _, playlist := range playlists {
+			if len(playlist.Name) > 9 && playlist.Name[:9] == "Daily Mix" {
+				trackCount := int(playlist.Tracks.Total)
+				categories = append(categories, LibraryCategory{
+					Name:       playlist.Name,
+					Icon:       "🎶",
+					Type:       "playlist",
+					ItemCount:  trackCount,
+					PlaylistID: playlist.ID,
+				})
+			}
+		}
+
+		// Add Recently Played category
+		categories = append(categories, LibraryCategory{
+			Name: "Recently Played",
+			Icon: "🕐",
+			Type: "recently_played",
+		})
+
+		// Add Saved Albums
+		savedAlbumsCount, err := m.spotifyClient.GetSavedAlbumsCount()
+		if err == nil && savedAlbumsCount > 0 {
 			categories = append(categories, LibraryCategory{
-				Name:       "Release Radar",
-				Icon:       "📡",
-				Type:       "playlist",
-				ItemCount:  min(len(tracks), 100),
-				PlaylistID: releaseRadar.ID,
+				Name:      "Saved Albums",
+				Icon:      "💿",
+				Type:      "saved_albums",
+				ItemCount: savedAlbumsCount,
+			})
+		}
+
+		// Add Followed Artists
+		followedArtists, err := m.spotifyClient.GetFollowedArtists()
+		if err == nil && len(followedArtists) > 0 {
+			categories = append(categories, LibraryCategory{
+				Name:      "Followed Artists",
+				Icon:      "🎤",
+				Type:      "followed_artists",
+				ItemCount: len(followedArtists),
 			})
 		}
 
@@ -498,10 +694,15 @@ func (m *Model) loadLibraryItems(category LibraryCategory) tea.Cmd {
 	return func() tea.Msg {
 		switch category.Type {
 		case "saved_tracks":
-			tracks, err := m.spotifyClient.GetSavedTracks()
+			// Load first page of saved tracks (50 tracks)
+			tracks, total, err := m.spotifyClient.GetSavedTracksPage(50, 0)
 			if err != nil {
 				return errMsg{err}
 			}
+			// Store the total count for pagination
+			m.savedTracksTotal = total
+			m.savedTracksOffset = len(tracks)
+			m.hasLoadedInitial = true
 			return savedTracksLoadedMsg{tracks}
 		case "playlist":
 			tracks, err := m.spotifyClient.GetPlaylistTracks(category.PlaylistID)
@@ -509,9 +710,55 @@ func (m *Model) loadLibraryItems(category LibraryCategory) tea.Cmd {
 				return errMsg{err}
 			}
 			return tracksLoadedMsg{tracks}
+		case "recently_played":
+			items, err := m.spotifyClient.GetRecentlyPlayed()
+			if err != nil {
+				return errMsg{err}
+			}
+			return recentlyPlayedLoadedMsg{items}
+		case "saved_albums":
+			// Load first page of saved albums (20 albums)
+			albums, total, err := m.spotifyClient.GetSavedAlbumsPage(20, 0)
+			if err != nil {
+				return errMsg{err}
+			}
+			// Store the total count for pagination
+			m.savedAlbumsTotal = total
+			m.savedAlbumsOffset = len(albums)
+			return savedAlbumsLoadedMsg{albums}
 		default:
 			return statusMsg{"This library category is not yet implemented"}
 		}
+	}
+}
+
+func (m *Model) loadMoreSavedTracks() tea.Cmd {
+	return func() tea.Msg {
+		if m.isLoadingMore || m.savedTracksOffset >= m.savedTracksTotal {
+			return nil
+		}
+
+		m.isLoadingMore = true
+		tracks, _, err := m.spotifyClient.GetSavedTracksPage(50, m.savedTracksOffset)
+		if err != nil {
+			return errMsg{err}
+		}
+		return moreTracksLoadedMsg{tracks}
+	}
+}
+
+func (m *Model) loadMoreSavedAlbums() tea.Cmd {
+	return func() tea.Msg {
+		if m.isLoadingMoreAlbums || m.savedAlbumsOffset >= m.savedAlbumsTotal {
+			return nil
+		}
+
+		m.isLoadingMoreAlbums = true
+		albums, _, err := m.spotifyClient.GetSavedAlbumsPage(20, m.savedAlbumsOffset)
+		if err != nil {
+			return errMsg{err}
+		}
+		return moreAlbumsLoadedMsg{albums}
 	}
 }
 

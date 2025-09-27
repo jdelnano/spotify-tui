@@ -45,4 +45,16 @@ type Model struct {
 	isSearching         bool
 	statusMessage       string
 	err                 error
+
+	// Pagination state for saved tracks
+	savedTracksOffset   int
+	savedTracksTotal    int
+	isLoadingMore       bool
+	hasLoadedInitial    bool
+
+	// Pagination state for saved albums
+	savedAlbumsOffset   int
+	savedAlbumsTotal    int
+	isLoadingMoreAlbums bool
+	albumCursor         int
 }

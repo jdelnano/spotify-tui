@@ -149,7 +149,7 @@ func (m Model) renderTrackPanel() string {
 	if m.selectedLibraryItem != nil {
 		content.WriteString(headerStyle.Render(fmt.Sprintf("%s %s", m.selectedLibraryItem.Icon, m.selectedLibraryItem.Name)) + "\n\n")
 
-		if m.selectedLibraryItem.Type == "saved_tracks" {
+		if m.selectedLibraryItem.Type == "saved_tracks" || m.selectedLibraryItem.Type == "recently_played" {
 			if len(m.savedTracks) == 0 {
 				content.WriteString(statusStyle.Render("No tracks found"))
 			} else {
@@ -189,6 +189,62 @@ func (m Model) renderTrackPanel() string {
 						line = normalStyle.Render(" " + line)
 					}
 					content.WriteString(line + "\n")
+				}
+
+				// Show loading indicator if loading more tracks
+				if m.selectedLibraryItem.Type == "saved_tracks" && m.isLoadingMore {
+					content.WriteString("\n" + statusStyle.Render(fmt.Sprintf("Loading more tracks... (%d/%d)", len(m.savedTracks), m.savedTracksTotal)))
+				} else if m.selectedLibraryItem.Type == "saved_tracks" && len(m.savedTracks) < m.savedTracksTotal {
+					content.WriteString("\n" + statusStyle.Render(fmt.Sprintf("Showing %d of %d tracks (scroll for more)", len(m.savedTracks), m.savedTracksTotal)))
+				}
+			}
+		} else if m.selectedLibraryItem.Type == "saved_albums" {
+			if len(m.savedAlbums) == 0 {
+				content.WriteString(statusStyle.Render("No albums found"))
+			} else {
+				visibleStart := 0
+				visibleEnd := len(m.savedAlbums)
+				maxVisible := m.height - 8
+
+				if len(m.savedAlbums) > maxVisible {
+					if m.albumCursor >= maxVisible {
+						visibleStart = m.albumCursor - maxVisible + 1
+					}
+					visibleEnd = visibleStart + maxVisible
+					if visibleEnd > len(m.savedAlbums) {
+						visibleEnd = len(m.savedAlbums)
+					}
+				}
+
+				for i := visibleStart; i < visibleEnd; i++ {
+					album := m.savedAlbums[i]
+
+					artists := ""
+					for j, artist := range album.Artists {
+						if j > 0 {
+							artists += ", "
+						}
+						artists += artist.Name
+					}
+
+					line := fmt.Sprintf(" %s - %s", album.Name, artists)
+					if len(line) > 60 {
+						line = line[:57] + "..."
+					}
+
+					if i == m.albumCursor && m.viewMode == PlaylistView {
+						line = selectedStyle.Render("▶" + line)
+					} else {
+						line = normalStyle.Render(" " + line)
+					}
+					content.WriteString(line + "\n")
+				}
+
+				// Show loading indicator if loading more albums
+				if m.isLoadingMoreAlbums {
+					content.WriteString("\n" + statusStyle.Render(fmt.Sprintf("Loading more albums... (%d/%d)", len(m.savedAlbums), m.savedAlbumsTotal)))
+				} else if len(m.savedAlbums) < m.savedAlbumsTotal {
+					content.WriteString("\n" + statusStyle.Render(fmt.Sprintf("Showing %d of %d albums (scroll for more)", len(m.savedAlbums), m.savedAlbumsTotal)))
 				}
 			}
 		} else if m.selectedLibraryItem.Type == "playlist" {
@@ -419,7 +475,7 @@ func (m Model) renderLibraryPanel() string {
 }
 
 func (m Model) renderStatusBar() string {
-	help := "↑↓: Navigate | Tab: Switch Section | Enter: Select | /: Search | n: Now Playing | Space: Play/Pause | q: Quit"
+	help := "↑↓: Navigate | PgUp/PgDn: Fast scroll | Enter: Select | /: Search | n: Now Playing | Space: Play/Pause | q: Quit"
 	if m.statusMessage != "" {
 		help = m.statusMessage
 	}

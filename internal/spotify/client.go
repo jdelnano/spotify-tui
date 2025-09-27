@@ -156,6 +156,24 @@ func (c *Client) GetSavedTracks() ([]spotify.SavedTrack, error) {
 	return allTracks, nil
 }
 
+// GetSavedTracksPage fetches a specific page of saved tracks
+func (c *Client) GetSavedTracksPage(limit, offset int) ([]spotify.SavedTrack, int, error) {
+	tracks, err := c.client.CurrentUsersTracks(c.ctx, spotify.Limit(limit), spotify.Offset(offset))
+	if err != nil {
+		return nil, 0, err
+	}
+	return tracks.Tracks, int(tracks.Total), nil
+}
+
+// GetSavedTracksCount returns just the total count of saved tracks
+func (c *Client) GetSavedTracksCount() (int, error) {
+	tracks, err := c.client.CurrentUsersTracks(c.ctx, spotify.Limit(1))
+	if err != nil {
+		return 0, err
+	}
+	return int(tracks.Total), nil
+}
+
 func (c *Client) GetSavedAlbums() ([]spotify.SavedAlbum, error) {
 	albums, err := c.client.CurrentUsersAlbums(c.ctx, spotify.Limit(50))
 	if err != nil {
@@ -175,6 +193,24 @@ func (c *Client) GetSavedAlbums() ([]spotify.SavedAlbum, error) {
 	}
 
 	return allAlbums, nil
+}
+
+// GetSavedAlbumsPage fetches a specific page of saved albums
+func (c *Client) GetSavedAlbumsPage(limit, offset int) ([]spotify.SavedAlbum, int, error) {
+	albums, err := c.client.CurrentUsersAlbums(c.ctx, spotify.Limit(limit), spotify.Offset(offset))
+	if err != nil {
+		return nil, 0, err
+	}
+	return albums.Albums, int(albums.Total), nil
+}
+
+// GetSavedAlbumsCount returns just the total count of saved albums
+func (c *Client) GetSavedAlbumsCount() (int, error) {
+	albums, err := c.client.CurrentUsersAlbums(c.ctx, spotify.Limit(1))
+	if err != nil {
+		return 0, err
+	}
+	return int(albums.Total), nil
 }
 
 func (c *Client) GetFollowedArtists() ([]spotify.FullArtist, error) {
